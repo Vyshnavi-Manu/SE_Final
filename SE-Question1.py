@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
 import re
+import netsparker
+import openvas
+import pyt
+import yosai
 from collections import Counter
 import matplotlib.pyplot as plt
 
