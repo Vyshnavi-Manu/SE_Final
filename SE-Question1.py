@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import json
 import re
+from collections import Counter
+import matplotlib.pyplot as plt
 import netsparker
 import openvas
 import pyt
 import yosai
-from collections import Counter
-import matplotlib.pyplot as plt
+
 
 def read_json_file(file_path):
     try:
