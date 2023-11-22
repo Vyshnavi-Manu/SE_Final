@@ -1,12 +1,7 @@
-# -*- coding: utf-8 -*-
 import json
 import re
 from collections import Counter
 import matplotlib.pyplot as plt
-import netsparker
-import openvas
-import pyt
-import yosai
 
 
 def read_json_file(file_path):
@@ -22,24 +17,37 @@ def read_json_file(file_path):
         print(f"Unexpected error: {e}")
         return None
 
+#checks for potential code injection vulnerabilities by looking for suspicious patterns like print, import, and def 
+#within string values, particularly in keys related to passwords
 def check_security_issues(data):
     issues_counter = Counter()
 
     # Check for passwords, addresses, names, and keys
     for key, value in recursive_items(data):
         if isinstance(value, str):
+            # Check for password-like patterns
             if re.search(r'\bpassword\b|\bpass\b', key, re.IGNORECASE):
                 issues_counter['Passwords'] += 1
+                # Check for potential code injection
+                if re.search(r'\W+\bprint\b|\W+\bimport\b|\W+\bdef\b', value, re.IGNORECASE):
+                    issues_counter['Code Injection'] += 1
+
+            # Check for addresses
             if re.search(r'\baddress\b', key, re.IGNORECASE):
                 issues_counter['Addresses'] += 1
+
+            # Check for names
             if re.search(r'\bname\b', key, re.IGNORECASE):
                 issues_counter['Names'] += 1
+
         elif isinstance(value, (int, float)):
+            # Check for keys
             if key.lower() == 'key':
                 issues_counter['Keys'] += 1
 
     return issues_counter
-#recursive function
+
+
 def recursive_items(item):
     if isinstance(item, dict):
         for key, value in item.items():
@@ -48,6 +56,7 @@ def recursive_items(item):
     elif isinstance(item, list):
         for value in item:
             yield from recursive_items(value)
+
 
 def plot_security_issues(issues_counter):
     if issues_counter:
@@ -60,10 +69,12 @@ def plot_security_issues(issues_counter):
     else:
         print("No security issues found.")
 
-def main():
-    file_path = '/content/users_100.json'
-    json_data = read_json_file(file_path)
 
+if __name__ == '__main__':
+    # Replace with the actual file path
+    file_path = '/content/users_100.json'
+
+    json_data = read_json_file(file_path)
     if json_data:
         issues_counter = check_security_issues(json_data)
         print("Security Issues:")
@@ -71,6 +82,3 @@ def main():
             print(f"{issue}: {count}")
 
         plot_security_issues(issues_counter)
-
-if __name__ == '__main__':
-    main()
