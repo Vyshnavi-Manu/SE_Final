@@ -3,82 +3,59 @@ import re
 from collections import Counter
 import matplotlib.pyplot as plt
 
+def load_json_file(file_path):
+    """
+    Load and return JSON data from a file.
+    """
+    with open(file_path, 'r') as file:
+        return json.load(file)
 
-def read_json_file(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
-        return data
-    except json.JSONDecodeError as e:
-        print(f"Error reading JSON file: {e}")
-        print(f"Line {e.lineno}, Column {e.colno}: {e.msg}")
-        return None
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        return None
+def categorize_security_issues(json_data):
+    """
+    Categorize security issues into critical, major, minor, and less impacting.
+    """
+    # Regular expressions for different categories of data
+    critical_pattern = r'(?i)"password"\s*:\s*"[^"]+"'
+    major_pattern = r'(?i)"api_key"\s*:\s*"[^"]+"'
+    minor_pattern = r'(?i)"email"\s*:\s*"[^"]+"'
+    less_impacting_pattern = r'(?i)"username"\s*:\s*"[^"]+"'
 
-#checks for potential code injection vulnerabilities by looking for suspicious patterns like print, import, and def 
-#within string values, particularly in keys related to passwords
-def check_security_issues(data):
-    issues_counter = Counter()
+    # Finding matches
+    critical_issues = re.findall(critical_pattern, json.dumps(json_data))
+    major_issues = re.findall(major_pattern, json.dumps(json_data))
+    minor_issues = re.findall(minor_pattern, json.dumps(json_data))
+    less_impacting_issues = re.findall(less_impacting_pattern, json.dumps(json_data))
 
-    # Check for passwords, addresses, names, and keys
-    for key, value in recursive_items(data):
-        if isinstance(value, str):
-            # Check for password-like patterns
-            if re.search(r'\bpassword\b|\bpass\b', key, re.IGNORECASE):
-                issues_counter['Passwords'] += 1
-                # Check for potential code injection
-                if re.search(r'\W+\bprint\b|\W+\bimport\b|\W+\bdef\b', value, re.IGNORECASE):
-                    issues_counter['Code Injection'] += 1
-
-            # Check for addresses
-            if re.search(r'\baddress\b', key, re.IGNORECASE):
-                issues_counter['Addresses'] += 1
-
-            # Check for names
-            if re.search(r'\bname\b', key, re.IGNORECASE):
-                issues_counter['Names'] += 1
-
-        elif isinstance(value, (int, float)):
-            # Check for keys
-            if key.lower() == 'key':
-                issues_counter['Keys'] += 1
+    # Counting issues
+    issues_counter = Counter({'Critical': len(critical_issues),
+                              'Major': len(major_issues),
+                              'Minor': len(minor_issues),
+                              'Less Impacting': len(less_impacting_issues)})
 
     return issues_counter
 
-
-def recursive_items(item):
-    if isinstance(item, dict):
-        for key, value in item.items():
-            yield key, value
-            yield from recursive_items(value)
-    elif isinstance(item, list):
-        for value in item:
-            yield from recursive_items(value)
-
-
 def plot_security_issues(issues_counter):
-    if issues_counter:
-        labels, values = zip(*issues_counter.items())
-        plt.bar(labels, values)
-        plt.xlabel('Security Issues')
-        plt.ylabel('Count')
-        plt.title('Security Issues in JSON File')
-        plt.show()
-    else:
+    """
+    Plot the distribution of security issues in a pie chart with color coding.
+    """
+    # Check if there are any issues to plot
+    if sum(issues_counter.values()) == 0:
         print("No security issues found.")
+        return
+
+    labels = issues_counter.keys()
+    sizes = issues_counter.values()
+    colors = ['red', 'orange', 'yellow', 'green']  # Color coding
+
+    fig, ax = plt.subplots()
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, explode=(0.1, 0, 0, 0))
+    ax.axis('equal')
+
+    plt.title('Categorized Security Issues in JSON Data')
+    plt.show()
 
 
-if __name__ == '__main__':
-    # Replace with the actual file path
-    file_path = '/content/users_100.json'
-
-    json_data = read_json_file(file_path)
-    if json_data:
-        issues_counter = check_security_issues(json_data)
-        print("Security Issues:")
-        for issue, count in issues_counter.items():
-            print(f"{issue}: {count}")
-
-        plot_security_issues(issues_counter)
+file_path = '/content/20230831_061926_discussion_sharings.json'
+json_data = load_json_file(file_path)
+security_issues = categorize_security_issues(json_data)
+plot_security_issues(security_issues)
