@@ -7,113 +7,65 @@ Original file is located at
     https://colab.research.google.com/drive/1TtuUJJ-w_Zrf-yoyNnSOZtOn3drDKvTH
 """
 
-import json
-import matplotlib.pyplot as plt
-
-def AvgPromptCount(json_file_path, Chart_title):
-    try:
-        with open(json_file_path, 'r') as file:
-            data = json.load(file)
-    except Exception as e:
-        print(f"Error reading file: {e}")
-        return
-
-    opened_prompts = []
-    closed_prompts = []
-
-    if 'Sources' not in data or not isinstance(data['Sources'], list):
-        print("Invalid JSON structure: 'Sources' key not found or is not a list.")
-        return
-
-    for source in data['Sources']:
-        if not isinstance(source, dict):
-            continue  # Skip non-dict items
-
-        state = source.get('State')
-        if not isinstance(state, str):
-            continue  # Skip sources with invalid or missing 'State'
-
-        chatgpt_sharing = source.get('ChatgptSharing', [])
-        if not isinstance(chatgpt_sharing, list):
-            continue  # Skip sources with invalid 'ChatgptSharing'
-
-        for record in chatgpt_sharing:
-            num_prompts = record.get('NumberOfPrompts')
-            if isinstance(num_prompts, int) and num_prompts >= 0:
-                if state == "CLOSED":
-                    closed_prompts.append(num_prompts)
-                else:
-                    opened_prompts.append(num_prompts)
-
-    if not opened_prompts and not closed_prompts:
-        print("No valid data found to calculate averages.")
-        return
-
-    average_opened = round(sum(opened_prompts) / len(opened_prompts)) if opened_prompts else 0
-    average_closed = round(sum(closed_prompts) / len(closed_prompts)) if closed_prompts else 0
-
-    categories = ['Open', 'Closed']
-    values = [average_opened, average_closed]
-
-    plt.bar(categories, values, color=['blue', 'green'])
-
-    plt.xlabel('Issue State')
-    plt.ylabel('Average Number of Prompts')
-    plt.title(Chart_title)
-    plt.show()
-
-# Usage example
-json_file_path = '/content/20230810_123938_issue_sharings.json'
-AvgPromptCount('/content/20230810_123938_issue_sharings.json','Pull Request')
-
-import json
-
-# Read the JSON file
-with open('/content/20230810_123938_issue_sharings.json', 'r') as file:
-    data = json.load(file)
-
-# Initialize an empty array to store the prompts and answers
-prompt_answer_pairs = []
-
-# Iterate through the data to extract prompts and answers
-for conversation in data["Sources"][0]["ChatgptSharing"][0]["Conversations"]:
-    prompt = conversation["Prompt"]
-    answer = conversation["Answer"]
-    prompt_answer_pairs.append((prompt, answer))
-
-# Now prompt_answer_pairs contains all the prompt-answer pairs
-for i,j in prompt_answer_pairs:
-  print("Prompt: ",i)
-  print("Answer: ",j)
-
-import json
+import pandas as pd
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-def analyze_sentiment_vader(text):
-    sid = SentimentIntensityAnalyzer()
-    scores = sid.polarity_scores(text)
-    return scores
+# Load CSV data
+df = pd.read_csv('/content/Result.csv')  # Replace with your file path
 
-def process_json(json_data):
-    # Assuming json_data is a dictionary with a key "texts" that contains a list of texts
-    texts = json_data.get("texts", [])
+# Preprocess text data
+nltk.download('vader_lexicon')
+sia = SentimentIntensityAnalyzer()
+df['prompt_sentiment'] = df['Prompt'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
+df['answer_sentiment'] = df['Answer'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
 
-    # Analyze sentiment for each text
-    results = [{"text": text, "sentiment_scores": analyze_sentiment_vader(text)} for text in texts]
+# Function to categorize sentiment scores
+def categorize_sentiment(score):
+    if score > 0.05:
+        return 'Positive'
+    elif score < -0.05:
+        return 'Negative'
+    else:
+        return 'Neutral'
 
-    return results
+# Apply categorization
+df['prompt_sentiment_category'] = df['prompt_sentiment'].apply(categorize_sentiment)
+df['answer_sentiment_category'] = df['answer_sentiment'].apply(categorize_sentiment)
 
-# Example JSON object
-json_obj = {
-    "texts": [
-        "In this updated example, the withCopyFileToContainer"
-        "method is used to mount a local Java class file (YourClass.class) into the container at a specified path (CLASS_FILE_PATH)."
-    ]
-}
+# Correlation Analysis
+correlation = df[['prompt_sentiment', 'answer_sentiment']].corr()
+print("\nCorrelation between prompt sentiment and answer sentiment:\n", correlation)
 
-# Process the JSON object
-sentiment_results = process_json(json_obj)
+# Create subplots
+fig, axs = plt.subplots(2, 2, figsize=(12, 12))
 
-# Print the results
-print(sentiment_results)
+# Scatterplot of Sentiment Scores
+sns.scatterplot(ax=axs[0, 0], data=df, x='prompt_sentiment', y='answer_sentiment', hue='prompt_sentiment_category')
+axs[0, 0].set_title('Prompt Sentiment vs Answer Sentiment')
+axs[0, 0].set_xlabel('Prompt Sentiment Score')
+axs[0, 0].set_ylabel('Answer Sentiment Score')
+
+# Histogram for Distribution of Sentiment Scores
+sns.histplot(ax=axs[0, 1], data=df, x='prompt_sentiment', color='blue', label='Prompt Sentiment', kde=True, binwidth=0.1)
+sns.histplot(ax=axs[0, 1], data=df, x='answer_sentiment', color='orange', label='Answer Sentiment', kde=True, binwidth=0.1)
+axs[0, 1].set_title('Distribution of Sentiment Scores')
+axs[0, 1].set_xlabel('Sentiment Score')
+axs[0, 1].legend()
+
+# Countplot for Prompt Sentiment Categories
+sns.countplot(ax=axs[1, 0], data=df, x='prompt_sentiment_category')
+axs[1, 0].set_title('Distribution of Prompt Sentiment Categories')
+axs[1, 0].set_xlabel('Prompt Sentiment Category')
+axs[1, 0].set_ylabel('Count')
+
+# Countplot for Answer Sentiment Categories
+sns.countplot(ax=axs[1, 1], data=df, x='answer_sentiment_category')
+axs[1, 1].set_title('Distribution of Answer Sentiment Categories')
+axs[1, 1].set_xlabel('Answer Sentiment Category')
+axs[1, 1].set_ylabel('Count')
+
+plt.tight_layout()
+plt.show()
